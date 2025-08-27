@@ -1,0 +1,33 @@
+{
+  "products": [
+    {"serial": "2309060933", "model": "DZ6VSA421E"}
+  ],
+  "installationDate": "08/08/2025",
+  "customer": {
+    "firstName": "Jeremy",
+    "lastName": "Lachaine",
+    "phone": "6135555555",
+    "email": "jeremy@comforthub.ca",
+    "address1": "420 lapland private",
+    "zipPostal": "K2V 0S2",
+    "city": "Kanata",
+    "stateProvince": "ON",
+    "country": "Canada"
+  },
+  "dealer": {
+    "dealerZip": "k2m 2g9",
+    "dealerName": "comfort hub",
+    "dealerAddress": "430 lapland private",
+    "dealerCity": "Kanata",
+    "dealerState": "ON",
+    "dealerPhone": "6135811700",
+    "dealerCountry": "Canada"
+  },
+  "registrationType": "contractor",
+  "residentialType": "ownerOccupied",
+  "metadata": {
+    "source": "direct_url",
+    "version": "2.0",
+    "timestamp": "2025-08-23T01:30:00Z"
+  }
+}
