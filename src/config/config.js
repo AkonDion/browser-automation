@@ -88,37 +88,19 @@ const config = {
       confirmationMessage: process.env.CONFIRMATION_SELECTOR || '.confirmation-message, .success-message, .alert-success'
     },
 
-    // Default test data (from test-payload.json)
+    // Load test data from test-payload.json for products, installation date, and customer
     data: {
-      products: [
-        {
-          serial: "2309060933",
-          model: "DZ6VSA421E"
-        }
-      ],
-      installationDate: "08/08/2025",
-      customer: {
-        firstName: "Jeremy",
-        lastName: "Lachaine",
-        phone: "6135555555",
-        email: "jeremy@comforthub.ca",
-        address1: "420 lapland private",
-        zipPostal: "K2V 0S2",
-        city: "Kanata",
-        stateProvince: "ON",
-        country: "Canada"
-      },
+      ...require('../../test-payload.json'),
+      // Hardcoded dealer information (always Comfort Hub)
       dealer: {
-        dealerZip: "k2m 2g9",
-        dealerName: "comfort hub",
-        dealerAddress: "430 lapland private",
+        dealerZip: "K2M 2G8",
+        dealerName: "Comfort Hub",
+        dealerAddress: "65 Denzil Doyle Court",
         dealerCity: "Kanata",
         dealerState: "ON",
-        dealerPhone: "6135811700",
+        dealerPhone: "6135811770",
         dealerCountry: "Canada"
-      },
-      registrationType: "contractor",
-      residentialType: "ownerOccupied"
+      }
     }
   },
 

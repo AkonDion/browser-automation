@@ -74,12 +74,16 @@ class DaikinAutomation {
     logger.info(`Adding serial number: ${product.serial}`);
     
     try {
-      // Fill serial number and press Enter
-      await this.browserManager.page.getByRole('textbox', { name: 'Serial number' }).fill(product.serial);
-      await this.browserManager.page.getByRole('textbox', { name: 'Serial number' }).press('Enter');
+      // Use FormInteractions to fill serial number with proper waits
+      await this.formInteractions.typeIntoField(FIELD_SELECTORS.serialNumber, product.serial, {
+        verify: true,
+        clear: true
+      });
       
-      // Wait for potential error dialogs
+      // Press Enter and wait for validation
+      await this.browserManager.page.getByRole('textbox', { name: 'Serial number' }).press('Enter');
       await this.browserManager.page.waitForLoadState('networkidle');
+      await this.browserManager.page.waitForTimeout(2000); // Additional wait for Daikin validation
 
       // Check for "already registered" error
       const alreadyRegisteredText = await this.browserManager.page.getByText(/error.*unit has already been registered/i).isVisible();
