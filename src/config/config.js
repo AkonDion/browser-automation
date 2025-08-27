@@ -88,15 +88,37 @@ const config = {
       confirmationMessage: process.env.CONFIRMATION_SELECTOR || '.confirmation-message, .success-message, .alert-success'
     },
 
-    // Default test data (will be overridden by webhook)
+    // Default test data (from test-payload.json)
     data: {
       products: [
         {
-          serial: process.env.SERIAL_NUMBER || 'E000187',
-          model: process.env.MODEL || 'DH9VSA361C'
+          serial: "2309060933",
+          model: "DZ6VSA421E"
         }
       ],
-      installationDate: process.env.INSTALLATION_DATE || '6/3/2025'
+      installationDate: "08/08/2025",
+      customer: {
+        firstName: "Jeremy",
+        lastName: "Lachaine",
+        phone: "6135555555",
+        email: "jeremy@comforthub.ca",
+        address1: "420 lapland private",
+        zipPostal: "K2V 0S2",
+        city: "Kanata",
+        stateProvince: "ON",
+        country: "Canada"
+      },
+      dealer: {
+        dealerZip: "k2m 2g9",
+        dealerName: "comfort hub",
+        dealerAddress: "430 lapland private",
+        dealerCity: "Kanata",
+        dealerState: "ON",
+        dealerPhone: "6135811700",
+        dealerCountry: "Canada"
+      },
+      registrationType: "contractor",
+      residentialType: "ownerOccupied"
     }
   },
 

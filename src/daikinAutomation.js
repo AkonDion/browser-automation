@@ -1,7 +1,7 @@
 const BrowserManager = require('./utils/browser');
 const logger = require('./utils/logger');
 const CertificateCleanup = require('./utils/certificateCleanup');
-const { SELECTORS, WAIT, clickFirstVisible } = require('./utils/daikinUtils');
+const { FIELD_SELECTORS, FormInteractions } = require('./utils/formUtils');
 
 class DaikinAutomation {
   constructor(config, webhookData = null) {
@@ -10,6 +10,7 @@ class DaikinAutomation {
     this.webhookData = webhookData;
     this.certificateCleanup = new CertificateCleanup(config);
     this.formData = webhookData || config.form.data;
+    this.formInteractions = null; // Will be initialized after browser setup
     
     // Convert all text inputs to uppercase
     if (this.formData.products) {
@@ -45,6 +46,7 @@ class DaikinAutomation {
   async initialize() {
     logger.info('Initializing Daikin automation...');
     await this.browserManager.initialize();
+    this.formInteractions = new FormInteractions(this.browserManager.page, this.config);
     return this;
   }
 
@@ -54,6 +56,9 @@ class DaikinAutomation {
     
     try {
       await this.browserManager.page.goto(directUrl, { waitUntil: 'networkidle' });
+      
+      // Wait for page load
+      await this.browserManager.page.waitForLoadState('networkidle');
       
       // CRITICAL: Must select registration type before adding serials
       await this.browserManager.page.locator('#mat-radio-10').getByText('I am registering on behalf of').click();
@@ -74,10 +79,10 @@ class DaikinAutomation {
       await this.browserManager.page.getByRole('textbox', { name: 'Serial number' }).press('Enter');
       
       // Wait for potential error dialogs
-      await this.browserManager.page.waitForTimeout(2000);
+      await this.browserManager.page.waitForLoadState('networkidle');
 
       // Check for "already registered" error
-      const alreadyRegisteredText = await this.browserManager.page.getByText('Error This unit has already been registered').isVisible();
+      const alreadyRegisteredText = await this.browserManager.page.getByText(/error.*unit has already been registered/i).isVisible();
       if (alreadyRegisteredText) {
         const error = {
           type: 'ALREADY_REGISTERED',
@@ -90,7 +95,7 @@ class DaikinAutomation {
       }
 
       // Check for "invalid serial" error
-      const invalidSerialText = await this.browserManager.page.getByText(/The Serial # is invalid/).isVisible();
+      const invalidSerialText = await this.browserManager.page.getByText(/the serial #.*invalid/i).isVisible();
       if (invalidSerialText) {
         const error = {
           type: 'INVALID_SERIAL',
@@ -102,7 +107,7 @@ class DaikinAutomation {
         throw error;
       }
       
-      } catch (error) {
+    } catch (error) {
       // If it's one of our custom errors, throw it as is
       if (error.type === 'ALREADY_REGISTERED' || error.type === 'INVALID_SERIAL') {
         throw error;
@@ -133,9 +138,13 @@ class DaikinAutomation {
     logger.info(`Filling installation date: ${this.formData.installationDate}`);
     
     try {
-      // Double click the date field and fill it
-      await this.browserManager.page.getByRole('textbox', { name: 'Install Date/Date of Closing' }).dblclick();
-      await this.browserManager.page.getByRole('textbox', { name: 'Install Date/Date of Closing' }).fill(this.formData.installationDate);
+      await this.formInteractions.typeIntoField(FIELD_SELECTORS.installDate, this.formData.installationDate, {
+        verify: true,
+        clear: true
+      });
+      
+      // Wait for any date picker to close
+      await this.browserManager.page.waitForLoadState('networkidle');
       
     } catch (error) {
       logger.error('Failed to fill installation date:', error);
@@ -147,10 +156,10 @@ class DaikinAutomation {
     logger.info('Selecting residential option...');
     
     try {
-      // Click the residential option
       await this.browserManager.page.getByText('Residential(Owner Occupied').click();
+      await this.browserManager.page.waitForLoadState('networkidle');
       
-      } catch (error) {
+    } catch (error) {
       logger.error('Failed to select residential option:', error);
       throw error;
     }
@@ -160,13 +169,17 @@ class DaikinAutomation {
     logger.info('Clicking Next and Continue...');
     
     try {
-      // Click Next button
-      await this.browserManager.page.getByRole('button', { name: 'Next' }).click();
+      // Click Next button and wait for navigation
+      await this.formInteractions.clickButton(FIELD_SELECTORS.next, {
+        waitForNavigation: true
+      });
       
-      // Click Continue button
-      await this.browserManager.page.getByRole('button', { name: 'Continue' }).click();
+      // Click Continue button and wait for navigation
+      await this.formInteractions.clickButton(FIELD_SELECTORS.continue, {
+        waitForNavigation: true
+      });
       
-        } catch (error) {
+    } catch (error) {
       logger.error('Failed to click Next/Continue:', error);
       throw error;
     }
@@ -176,56 +189,56 @@ class DaikinAutomation {
     logger.info('Filling customer details...');
 
     try {
-      // Click and fill First Name
-      await this.browserManager.page.getByRole('textbox', { name: 'First Name' }).click();
-      await this.browserManager.page.getByRole('textbox', { name: 'First Name' }).fill(customerData.firstName);
-
-      // Click and fill Last Name
-      await this.browserManager.page.getByRole('textbox', { name: 'Last Name' }).click();
-      await this.browserManager.page.getByRole('textbox', { name: 'Last Name' }).fill(customerData.lastName);
-
-      // Click and fill Phone
-      await this.browserManager.page.getByRole('textbox', { name: 'Phone' }).click();
-      await this.browserManager.page.getByRole('textbox', { name: 'Phone' }).fill(customerData.phone);
-
-      // Click and fill Email
-      await this.browserManager.page.getByRole('textbox', { name: 'Email' }).click();
-      await this.browserManager.page.getByRole('textbox', { name: 'Email' }).fill(customerData.email);
-
-      // Click and fill Address
-      await this.browserManager.page.getByRole('textbox', { name: 'Address1' }).click();
-      await this.browserManager.page.getByRole('textbox', { name: 'Address1' }).fill(customerData.address1);
-
-      // Click and fill Zip Code
-      await this.browserManager.page.getByRole('textbox', { name: 'Zip/Postal Code' }).click();
-      await this.browserManager.page.getByRole('textbox', { name: 'Zip/Postal Code' }).fill(customerData.zipPostal);
-
-      // Wait for potential auto-fill
-      await this.browserManager.page.waitForTimeout(2000);
-
-      // Click City and State fields to check auto-fill
-      await this.browserManager.page.getByRole('textbox', { name: 'City' }).click();
-      await this.browserManager.page.getByRole('textbox', { name: 'State/Province' }).click();
-
-      // Fill City and State if not auto-filled
-      const cityValue = await this.browserManager.page.getByRole('textbox', { name: 'City' }).inputValue();
+      // Fill personal information
+      await this.formInteractions.typeIntoField(FIELD_SELECTORS.firstName, customerData.firstName, { verify: true });
+      await this.formInteractions.typeIntoField(FIELD_SELECTORS.lastName, customerData.lastName, { verify: true });
+      await this.formInteractions.typeIntoField(FIELD_SELECTORS.phone, customerData.phone, { verify: true });
+      await this.formInteractions.typeIntoField(FIELD_SELECTORS.email, customerData.email, { verify: true });
+      
+      // Fill address information
+      await this.formInteractions.typeIntoField(FIELD_SELECTORS.address1, customerData.address1, { verify: true });
+      
+      // Fill postal code and click outside to trigger validation
+      const postalField = this.browserManager.page.getByRole('textbox', { name: 'Zip/Postal Code' });
+      await postalField.click();
+      await postalField.fill(customerData.zipPostal);
+      
+      // Click outside the field
+      await this.browserManager.page.locator('reg-layout').click();
+      await this.browserManager.page.waitForTimeout(1000);
+      
+      // Check if city was autofilled
+      const cityField = this.browserManager.page.getByRole('textbox', { name: 'City' });
+      await cityField.click();
+      const cityValue = await cityField.inputValue();
+      
+      // Check if state/province was autofilled
+      const stateField = this.browserManager.page.getByRole('textbox', { name: 'State/Province' });
+      await stateField.click();
+      const stateValue = await stateField.inputValue();
+      
+      // Fill city and state if not autofilled
       if (!cityValue) {
-        await this.browserManager.page.getByRole('textbox', { name: 'City' }).fill(customerData.city);
+        await this.formInteractions.typeIntoField(FIELD_SELECTORS.city, customerData.city, { verify: true });
       }
-
-      const stateValue = await this.browserManager.page.getByRole('textbox', { name: 'State/Province' }).inputValue();
       if (!stateValue) {
-        await this.browserManager.page.getByRole('textbox', { name: 'State/Province' }).fill(customerData.stateProvince);
+        await this.formInteractions.typeIntoField(FIELD_SELECTORS.stateProvince, customerData.stateProvince, { verify: true });
       }
+      
 
-      // Click City again (as per sequence)
-      await this.browserManager.page.getByRole('textbox', { name: 'City' }).click();
-
-      // Click checkbox text and Next button using exact selectors
-      await this.browserManager.page.locator('#mat-checkbox-4').getByText('By checking this box, you').click();
-      await this.browserManager.page.getByRole('button', { name: 'Next' }).click();
-
-      } catch (error) {
+      
+      // Uncheck terms box first (in case it's checked)
+      const termsCheckbox = this.browserManager.page.locator('#mat-checkbox-4').getByText('By checking this box, you');
+      await termsCheckbox.waitFor({ state: 'visible' });
+      await termsCheckbox.click();
+      
+      // Wait a moment and click Next
+      await this.browserManager.page.waitForTimeout(500);
+      await this.formInteractions.clickButton(FIELD_SELECTORS.next, {
+        waitForNavigation: true
+      });
+      
+    } catch (error) {
       logger.error('Failed to fill customer details:', error);
       throw error;
     }
@@ -235,29 +248,40 @@ class DaikinAutomation {
     logger.info('Filling dealer information...');
     
     try {
-      // Fill dealer zip code
-      await this.browserManager.page.getByRole('textbox', { name: 'Dealer/Builder Zip code*' }).click();
-      await this.browserManager.page.getByRole('textbox', { name: 'Dealer/Builder Zip code*' }).fill('K2M 2G8');
-
-      // Fill dealer name (already uppercase)
-      await this.browserManager.page.getByRole('combobox', { name: 'Dealer/Builder * (enter name' }).fill('COMFORT HUB');
-
-      // Fill dealer address
-      await this.browserManager.page.getByRole('textbox', { name: 'Address' }).click();
-      await this.browserManager.page.getByRole('textbox', { name: 'Address' }).fill('65 DENZIL DOYLE CT');
-
-      // Fill dealer city
-      await this.browserManager.page.getByRole('textbox', { name: 'City' }).click();
-      await this.browserManager.page.getByRole('textbox', { name: 'City' }).fill('OTTAWA');
-
-      // Fill dealer state
-      await this.browserManager.page.getByRole('textbox', { name: 'State' }).click();
-      await this.browserManager.page.getByRole('textbox', { name: 'State' }).fill('ON');
-
-      // Fill dealer phone
-      await this.browserManager.page.getByRole('textbox', { name: 'Dealer/Builder Phone*' }).click();
-      await this.browserManager.page.getByRole('textbox', { name: 'Dealer/Builder Phone*' }).fill('613-581-1770');
-
+      const dealer = this.formData.dealer;
+      
+      // EXACT sequence for dealer info
+      // Click zip field
+      const dealerZip = this.browserManager.page.getByRole('textbox', { name: 'Dealer/Builder Zip code*' });
+      await dealerZip.click();
+      
+      // Fill and press Enter
+      await dealerZip.fill(dealer.dealerZip);
+      await dealerZip.press('Enter');
+      
+      // Critical wait
+      await this.browserManager.page.waitForTimeout(2000);
+      
+      // Click dealer name field
+      const dealerName = this.browserManager.page.getByRole('combobox', { name: 'Dealer/Builder * (enter name' });
+      await dealerName.click();
+      
+      // Fill dealer name
+      await dealerName.fill(dealer.dealerName.toUpperCase());
+      
+      // Click outside
+      await this.browserManager.page.locator('reg-layout').click();
+      
+      // Click address field
+      const addressField = this.browserManager.page.getByRole('textbox', { name: 'Address' });
+      await addressField.click();
+      
+      // Fill dealer address details
+      await this.formInteractions.typeIntoField(FIELD_SELECTORS.dealerAddress, dealer.dealerAddress.toUpperCase(), { verify: true });
+      await this.formInteractions.typeIntoField(FIELD_SELECTORS.dealerCity, dealer.dealerCity.toUpperCase(), { verify: true });
+      await this.formInteractions.typeIntoField(FIELD_SELECTORS.dealerState, dealer.dealerState.toUpperCase(), { verify: true });
+      await this.formInteractions.typeIntoField(FIELD_SELECTORS.dealerPhone, dealer.dealerPhone, { verify: true });
+      
     } catch (error) {
       logger.error('Failed to fill dealer information:', error);
       throw error;
@@ -268,78 +292,68 @@ class DaikinAutomation {
     logger.info('Completing registration...');
     
     try {
-      // Click Register button
-      await this.browserManager.page.getByRole('button', { name: 'Register' }).click();
+      // Click Register button and handle address validation
+      await this.formInteractions.clickButton(FIELD_SELECTORS.register, {
+        waitForNavigation: true
+      });
       
-      // Check for address validation window after Register
-      try {
-        const addressConfirmText = await this.browserManager.page.getByText('Please confirm the name/address information is correct');
-        if (await addressConfirmText.isVisible()) {
-          logger.info('Address validation window detected after Register, clicking Yes');
-          await this.browserManager.page.getByRole('button', { name: 'Yes' }).click();
-          await this.browserManager.page.waitForTimeout(1000);
-        }
-      } catch (confirmError) {
-        // No address validation needed, continue
-        logger.info('No address validation needed after Register');
+      // Handle address validation if it appears
+      const addressValidationShown = await this.formInteractions.handleDialog(
+        'Please confirm the name/address information is correct',
+        'confirm'
+      );
+      if (addressValidationShown) {
+        logger.info('Address validation handled after Register');
       }
       
       // Click Affirm button
-      await this.browserManager.page.getByRole('button', { name: 'Affirm', exact: true }).click();
+      await this.formInteractions.clickButton(FIELD_SELECTORS.affirm, {
+        waitForNavigation: true
+      });
       
-      // Check for address validation window after Affirm
-      try {
-        const addressConfirmText = await this.browserManager.page.getByText('Please confirm the name/address information is correct');
-        if (await addressConfirmText.isVisible()) {
-          logger.info('Address validation window detected after Affirm, clicking Yes');
-          await this.browserManager.page.getByRole('button', { name: 'Yes' }).click();
-          await this.browserManager.page.waitForTimeout(1000);
-        }
-      } catch (confirmError) {
-        // No address validation needed, continue
-        logger.info('No address validation needed after Affirm');
+      // Handle any additional address validation
+      const additionalValidationShown = await this.formInteractions.handleDialog(
+        'Please confirm the name/address information is correct',
+        'confirm'
+      );
+      if (additionalValidationShown) {
+        logger.info('Address validation handled after Affirm');
       }
       
-      // Click Yes button for the standard confirmation
-      await this.browserManager.page.getByRole('button', { name: 'Yes' }).click();
+      // Handle standard confirmation
+      await this.formInteractions.clickButton(FIELD_SELECTORS.yes, {
+        waitForNavigation: true
+      });
       
-      // Take screenshot to see what appears
-      await this.browserManager.takeScreenshot('after_yes_click');
+      // Wait for the page load and network to settle
+      await this.browserManager.page.waitForLoadState('networkidle');
+      await this.browserManager.page.waitForLoadState('domcontentloaded');
+      // Add a longer buffer for UI rendering and dialog initialization
+      await this.browserManager.page.waitForTimeout(5000);
       
-      // Handle any dialogs that might appear
-      await this.browserManager.takeScreenshot('before_dialog_check');
+      // Take screenshot for verification
+      await this.browserManager.takeScreenshot('after_confirmations');
       
-      // Try to handle dialogs multiple times to ensure all are cleared
-      let dialogsHandled = true;
-      let attempts = 0;
-      const maxAttempts = 3;
-      
-      while (dialogsHandled && attempts < maxAttempts) {
-        dialogsHandled = await require('./utils/daikinUtils').handleDialogs(this.browserManager.page);
-        attempts++;
-        if (dialogsHandled) {
-          logger.info(`Dialog handling attempt ${attempts}: dialogs were found and handled`);
-          // Take a screenshot after each successful dialog handling
-          await this.browserManager.takeScreenshot(`after_dialog_${attempts}`);
-        }
+      // Handle any Installing Contractor dialog with increased timeout
+      const contractorDialogShown = await this.formInteractions.handleOverlay({
+        role: 'button',
+        name: /installing contractor/i
+      }, 'close', 5000); // Increased timeout to 5 seconds
+      if (contractorDialogShown) {
+        logger.info('Installing Contractor dialog handled');
       }
       
-      // Take screenshot before download
-      await this.browserManager.takeScreenshot('before_download');
-      
-      // Wait for network idle after email send (for jspdf libraries to load)
+      // Wait for network idle before download
       await this.browserManager.page.waitForLoadState('networkidle');
       
       // Set up download listener
       const downloadPromise = this.browserManager.page.waitForEvent('download');
       
-      // Click the download button directly since we know its exact role
-      await this.browserManager.page.getByRole('button', { name: 'Download Certificate' }).click();
+      // Click download button
+      await this.formInteractions.clickButton(FIELD_SELECTORS.downloadCertificate);
       
-      // Wait for download
+      // Wait for and save download
       const download = await downloadPromise;
-      
-      // Save the download
       const filename = download.suggestedFilename();
       const downloadPath = require('path').join(require('os').homedir(), 'Downloads', filename);
       await download.saveAs(downloadPath);
@@ -356,6 +370,58 @@ class DaikinAutomation {
   async close() {
     logger.info('Closing automation...');
     await this.browserManager.close();
+  }
+
+  async runFirstPageAutomation() {
+    try {
+      // Navigate to form
+      await this.navigateToForm();
+
+      // Add all products
+      await this.addAllProducts();
+
+      // Fill installation date
+      await this.fillInstallationDate();
+
+      // Select residential option
+      await this.selectResidentialOption();
+
+      // Click next to proceed
+      await this.clickNext();
+
+      // Fill customer details
+      await this.fillCustomerDetails(this.formData.customer);
+
+      // Fill dealer information
+      await this.fillDealerBuilderInfo();
+
+      // Complete registration
+      const downloadInfo = await this.completeRegistration();
+
+      return {
+        success: true,
+        message: 'Registration completed successfully',
+        timestamp: new Date().toISOString(),
+        downloadInfo
+      };
+
+    } catch (error) {
+      // Take error screenshot
+      if (this.browserManager?.page) {
+        await this.browserManager.takeScreenshot('error_state');
+      }
+
+      return {
+        success: false,
+        message: error.message,
+        timestamp: new Date().toISOString(),
+        error: {
+          type: error.type || 'AUTOMATION_ERROR',
+          details: error.message,
+          stack: error.stack
+        }
+      };
+    }
   }
 }
 

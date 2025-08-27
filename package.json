@@ -12,6 +12,7 @@
     "server-dev": "NODE_ENV=development node src/server.js",
     "test-daikin": "node test-daikin.js",
     "debug-daikin": "node debug-daikin.js",
+    "smoke": "node src/index.js --mode=test --repeat=5 --retries=1",
     "docker-build": "docker build -t warranty-automation .",
     "docker-run": "docker run --rm -v $(pwd)/logs:/app/logs warranty-automation"
   },
